@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--fname', type=str,
     help='name of config file to load',
-    default='configs.yaml')
+    default=r"D:\omer\i-jepa\ijepa\configs\mnist.yaml")
 parser.add_argument(
     '--devices', type=str, nargs='+', default=['cuda:0'],
     help='which devices to use on local machine')

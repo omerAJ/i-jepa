@@ -20,12 +20,12 @@ _GLOBAL_SEED = 0
 logger = getLogger()
 
 
-def make_imagenet1k(
+def make_mnist(
     transform,
     batch_size,
     collator=None,
     pin_mem=True,
-    num_workers=8,
+    num_workers=0,
     world_size=1,
     rank=0,
     root_path=None,
@@ -35,18 +35,13 @@ def make_imagenet1k(
     drop_last=True,
     subset_file=None
 ):
-    
-    dataset = torchvision.datasets.MNIST(
+    dataset = MNISTDataset(
         root=root_path,
+        image_folder=image_folder,
         transform=transform,
-        train=training)
-    # dataset = ImageNet(
-    #     root=root_path,
-    #     image_folder=image_folder,
-    #     transform=transform,
-    #     train=training,
-    #     copy_data=copy_data,
-    #     index_targets=False)
+        train=training,
+        copy_data=copy_data,
+        index_targets=False)
     if subset_file is not None:
         dataset = ImageNetSubset(dataset, subset_file)
     logger.info('ImageNet dataset created')
@@ -68,13 +63,14 @@ def make_imagenet1k(
     return dataset, data_loader, dist_sampler
 
 
-class ImageNet(torchvision.datasets.ImageFolder):
+import os
+import numpy as np
+import torchvision.datasets
 
+class MNISTDataset(torchvision.datasets.MNIST):
     def __init__(
         self,
         root,
-        image_folder='imagenet_full_size/061417/',
-        tar_file='imagenet_full_size-061417.tar.gz',
         transform=None,
         train=True,
         job_id=None,
@@ -83,100 +79,46 @@ class ImageNet(torchvision.datasets.ImageFolder):
         index_targets=False
     ):
         """
-        ImageNet
+        MNIST Dataset
 
         Dataset wrapper (can copy data locally to machine)
 
-        :param root: root network directory for ImageNet data
-        :param image_folder: path to images inside root network directory
-        :param tar_file: zipped image_folder inside root network directory
+        :param root: root directory for MNIST data
         :param train: whether to load train data (or validation)
         :param job_id: scheduler job-id used to create dir on local machine
         :param copy_data: whether to copy data from network file locally
         :param index_targets: whether to index the id of each labeled image
         """
-
-        suffix = 'train/' if train else 'val/'
+        
         data_path = None
         if copy_data:
             logger.info('copying data locally')
-            data_path = copy_imgnt_locally(
+            data_path = copy_data_locally(
                 root=root,
-                suffix=suffix,
-                image_folder=image_folder,
-                tar_file=tar_file,
+                dataset_name='MNIST',
+                train=train,
                 job_id=job_id,
                 local_rank=local_rank)
         if (not copy_data) or (data_path is None):
-            data_path = os.path.join(root, image_folder, suffix)
+            data_path = os.path.join(root, 'MNIST')
         logger.info(f'data-path {data_path}')
 
-        super(ImageNet, self).__init__(root=data_path, transform=transform)
-        logger.info('Initialized ImageNet')
+        super(MNISTDataset, self).__init__(root=data_path, train=train, transform=transform, download=True)
+        logger.info('Initialized MNIST Dataset')
 
         if index_targets:
-            self.targets = []
-            for sample in self.samples:
-                self.targets.append(sample[1])
-            self.targets = np.array(self.targets)
-            self.samples = np.array(self.samples)
+            self.targets = self.targets.numpy() if isinstance(self.targets, torch.Tensor) else np.array(self.targets)
+            self.samples = [(self.data[i], self.targets[i]) for i in range(len(self.targets))]
 
             mint = None
             self.target_indices = []
-            for t in range(len(self.classes)):
+            for t in range(10): # MNIST has 10 classes (digits 0-9)
                 indices = np.squeeze(np.argwhere(
                     self.targets == t)).tolist()
                 self.target_indices.append(indices)
                 mint = len(indices) if mint is None else min(mint, len(indices))
                 logger.debug(f'num-labeled target {t} {len(indices)}')
             logger.info(f'min. labeled indices {mint}')
-
-
-class ImageNetSubset(object):
-
-    def __init__(self, dataset, subset_file):
-        """
-        ImageNetSubset
-
-        :param dataset: ImageNet dataset object
-        :param subset_file: '.txt' file containing IDs of IN1K images to keep
-        """
-        self.dataset = dataset
-        self.subset_file = subset_file
-        self.filter_dataset_(subset_file)
-
-    def filter_dataset_(self, subset_file):
-        """ Filter self.dataset to a subset """
-        root = self.dataset.root
-        class_to_idx = self.dataset.class_to_idx
-        # -- update samples to subset of IN1k targets/samples
-        new_samples = []
-        logger.info(f'Using {subset_file}')
-        with open(subset_file, 'r') as rfile:
-            for line in rfile:
-                class_name = line.split('_')[0]
-                target = class_to_idx[class_name]
-                img = line.split('\n')[0]
-                new_samples.append(
-                    (os.path.join(root, class_name, img), target)
-                )
-        self.samples = new_samples
-
-    @property
-    def classes(self):
-        return self.dataset.classes
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, index):
-        path, target = self.samples[index]
-        img = self.dataset.loader(path)
-        if self.dataset.transform is not None:
-            img = self.dataset.transform(img)
-        if self.dataset.target_transform is not None:
-            target = self.dataset.target_transform(target)
-        return img, target
 
 
 def copy_imgnt_locally(

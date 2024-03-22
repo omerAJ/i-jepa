@@ -16,7 +16,6 @@ import torch
 _GLOBAL_SEED = 0
 logger = getLogger()
 
-
 class MaskCollator(object):
 
     def __init__(

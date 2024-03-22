@@ -51,7 +51,8 @@ def load_checkpoint(
             logger.info(f'loaded pretrained encoder from epoch {epoch} with msg: {msg}')
 
         # -- loading optimizer
-        opt.load_state_dict(checkpoint['opt'])
+        if opt is not None:
+            opt.load_state_dict(checkpoint['opt'])
         if scaler is not None:
             scaler.load_state_dict(checkpoint['scaler'])
         logger.info(f'loaded optimizers from epoch {epoch}')

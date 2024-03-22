@@ -51,7 +51,7 @@ from src.transforms import make_transforms
 
 # --
 log_timings = True
-log_freq = 10
+log_freq = 100
 checkpoint_freq = 50
 # --
 
@@ -218,9 +218,9 @@ def main(args, resume_preempt=False):
         num_epochs=num_epochs,
         ipe_scale=ipe_scale,
         use_bfloat16=use_bfloat16)
-    encoder = DistributedDataParallel(encoder, static_graph=True)
-    predictor = DistributedDataParallel(predictor, static_graph=True)
-    target_encoder = DistributedDataParallel(target_encoder)
+    # encoder = DistributedDataParallel(encoder, static_graph=True)
+    # predictor = DistributedDataParallel(predictor, static_graph=True)
+    # target_encoder = DistributedDataParallel(target_encoder)
     for p in target_encoder.parameters():
         p.requires_grad = False
 
@@ -275,8 +275,10 @@ def main(args, resume_preempt=False):
         maskB_meter = AverageMeter()
         time_meter = AverageMeter()
 
+        print("\n\n\nbefore enmerating loader")
         for itr, (udata, masks_enc, masks_pred) in enumerate(unsupervised_loader):
-
+            # print("\n\n\nenmerating loader")
+        
             def load_imgs():
                 # -- unsupervised imgs
                 imgs = udata[0].to(device, non_blocking=True)
@@ -293,7 +295,7 @@ def main(args, resume_preempt=False):
                 # --
 
                 def forward_target():
-                    with torch.no_grad():
+                    with torch.no_grad():  #sg
                         h = target_encoder(imgs)
                         h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
                         B = len(h)

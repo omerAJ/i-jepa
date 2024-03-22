@@ -17,6 +17,7 @@ logger = getLogger()
 
 
 def make_transforms(
+    
     crop_size=224,
     crop_scale=(0.3, 1.0),
     color_jitter=1.0,
@@ -39,6 +40,13 @@ def make_transforms(
         return color_distort
 
     transform_list = []
+    
+    # resizing mnist to in1k
+    transform_list += [transforms.Resize((224, 224))]
+    transform_list += [transforms.Grayscale(num_output_channels=3)]
+    
+    
+    transform_list += [transforms.RandomResizedCrop(crop_size, scale=crop_scale)]
     transform_list += [transforms.RandomResizedCrop(crop_size, scale=crop_scale)]
     if horizontal_flip:
         transform_list += [transforms.RandomHorizontalFlip()]
