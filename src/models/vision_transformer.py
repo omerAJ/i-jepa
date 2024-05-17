@@ -238,7 +238,7 @@ class VisionTransformerPredictor(nn.Module):
     ):
         super().__init__()
         self.predictor_embed = nn.Linear(embed_dim, predictor_embed_dim, bias=True)
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, predictor_embed_dim))
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, predictor_embed_dim))  # does not require grad
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         # --
         self.predictor_pos_embed = nn.Parameter(torch.zeros(1, num_patches, predictor_embed_dim),
@@ -311,7 +311,7 @@ class VisionTransformerPredictor(nn.Module):
         pred_tokens = self.mask_token.repeat(pos_embs.size(0), pos_embs.size(1), 1)
         # --
         pred_tokens += pos_embs
-        x = x.repeat(len(masks), 1, 1)
+        x = x.repeat(len(masks), 1, 1)        ## repeat x 4 times, once for every target mask. then append pred_tokens to each.
         x = torch.cat([x, pred_tokens], dim=1)
 
         # -- fwd prop

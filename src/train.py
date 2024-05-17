@@ -286,6 +286,16 @@ def main(args, resume_preempt=False):
                 masks_2 = [u.to(device, non_blocking=True) for u in masks_pred]
                 return (imgs, masks_1, masks_2)
             imgs, masks_enc, masks_pred = load_imgs()
+            print("\n\n\nafter load_imgs")
+            print("imgs.shape: ", imgs.shape, "len(masks_enc): ", len(masks_enc), "len(masks_pred): ", len(masks_pred))
+            print("masks_enc[0].shape: ", masks_enc[0].shape, "masks_pred[0].shape: ", masks_pred[0].shape, "masks_pred[1].shape: ", masks_pred[1].shape)
+            print("mask_enc: ", masks_enc[0][0:4, -10:-1], "mask_pred: ", masks_pred[0])
+            print("done\n\n\n")
+
+            """
+            imgs.shape:  torch.Size([64, 3, 224, 224]) len(masks_enc):  1 len(masks_pred):  4
+            masks_enc[0].shape:  torch.Size([64, 67]) masks_pred[0].shape:  torch.Size([64, 42]) masks_pred[1].shape:  torch.Size([64, 42])  ## different mask for every image
+            """
             maskA_meter.update(len(masks_enc[0][0]))
             maskB_meter.update(len(masks_pred[0][0]))
 
@@ -297,16 +307,29 @@ def main(args, resume_preempt=False):
                 def forward_target():
                     with torch.no_grad():  #sg
                         h = target_encoder(imgs)
+                        print("imgs.shape: ", imgs.shape, "h.shape: ", h.shape)
                         h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
                         B = len(h)
+                        print("B: ", B, "len(masks_pred)", len(masks_pred), "masks_pred.shape: ", masks_pred[0].shape)
                         # -- create targets (masked regions of h)
                         h = apply_masks(h, masks_pred)
+                        print("h.shape (after apply_masks): ", h.shape)
                         h = repeat_interleave_batch(h, B, repeat=len(masks_enc))
+                        print("h.shape (after repeat): ", h.shape)
+                        """
+                        imgs.shape:  torch.Size([64, 3, 224, 224]) h.shape:  torch.Size([64, 256, 192])
+                        B:  64 len(masks_pred) 4 masks_pred.shape:  torch.Size([64, 48])
+                        h.shape (after apply_masks):  torch.Size([256, 48, 192])
+                        h.shape (after repeat):  torch.Size([256, 48, 192])                         ## mask for every image is different but of the same length
+                        """
                         return h
 
                 def forward_context():
+                    print("imgs.shape: ", imgs.shape, "masks_enc.shape: ", masks_enc[0].shape)
                     z = encoder(imgs, masks_enc)
+                    print("z.shape (after encoder): ", z.shape)
                     z = predictor(z, masks_enc, masks_pred)
+                    print("z.shape (after predictor): ", z.shape)
                     return z
 
                 def loss_fn(z, h):
